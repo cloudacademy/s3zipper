@@ -1,2 +1,5 @@
 conf.json
 s3zipper.exe
+s3zipper
+cmd/cmd
+cmd/conf.json
