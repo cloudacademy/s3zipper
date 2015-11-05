@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -15,19 +16,27 @@ import (
 
 var s3zipper *core.S3Zipper
 
+var configFile string
+
+func init() {
+	flag.StringVar(&configFile, "c", "./conf.json", "config file path")
+}
+
 func main() {
-	var config = core.Configuration{}
-	configFile, _ := os.Open("conf.json")
-	decoder := json.NewDecoder(configFile)
-	err := decoder.Decode(&config)
-	if err != nil {
-		panic("Error reading conf")
-	}
+	flag.Parse()
+
+	configJSON, err := os.Open(configFile)
+	checkError(err)
+
+	decoder := json.NewDecoder(configJSON)
+
+	config := core.Configuration{}
+	err = decoder.Decode(&config)
+	checkError(err)
 
 	s3zipper, err = core.New(config)
-	if err != nil {
-		panic("Error reading conf")
-	}
+	checkError(err)
+
 	fmt.Println("Running on port", config.Port)
 	http.HandleFunc("/", handler)
 	http.ListenAndServe(":"+strconv.Itoa(config.Port), nil)
@@ -51,4 +60,10 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	s3zipper.Process(w, ref)
 
 	log.Printf("%s\t%s\t%s", r.Method, r.RequestURI, time.Since(start))
+}
+
+func checkError(err error) {
+	if err != nil {
+		log.Fatal("Error: ", err)
+	}
 }
