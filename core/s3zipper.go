@@ -2,6 +2,7 @@ package core
 
 import (
 	"archive/zip"
+	"fmt"
 	"io"
 	"log"
 	"path/filepath"
@@ -84,7 +85,7 @@ func (z *S3Zipper) Process(w io.Writer, prefix string) (err error) {
 
 		f, _ := zipWriter.CreateHeader(h)
 
-		log.Println("Zipping:", zipPath)
+		fmt.Println("Zipping:", zipPath)
 
 		wl, err := io.Copy(f, rdr)
 
@@ -92,7 +93,7 @@ func (z *S3Zipper) Process(w io.Writer, prefix string) (err error) {
 			return err
 		}
 
-		log.Println("Zipped:", wl)
+		fmt.Println("Zipped:", wl)
 	}
 
 	return nil
