@@ -48,8 +48,8 @@ func (z *S3Zipper) Process(w io.Writer, prefix string) (err error) {
 		}
 
 		// Read file from S3, log any errors
-		rdr, err := z.aws_bucket.GetReader(file.S3Path)
-		defer rdr.Close()
+		key_rdr, err := z.aws_bucket.GetReader(file.S3Path)
+		defer key_rdr.Close()
 
 		if err != nil {
 			switch t := err.(type) {
@@ -87,7 +87,7 @@ func (z *S3Zipper) Process(w io.Writer, prefix string) (err error) {
 
 		fmt.Println("Zipping:", zipPath)
 
-		wl, err := io.Copy(f, rdr)
+		wl, err := io.Copy(f, key_rdr)
 
 		if err != nil {
 			return err
@@ -99,6 +99,14 @@ func (z *S3Zipper) Process(w io.Writer, prefix string) (err error) {
 	return nil
 }
 
+func (z *S3Zipper) CacheExists(prefix string) (bool, error) {
+	return z.aws_bucket.Exists(prefix)
+}
+
+func (z *S3Zipper) CacheSignedUrl(prefix string) string {
+	return z.aws_bucket.SignedURL(prefix, time.Now().Add(time.Minute))
+}
+
 func (z *S3Zipper) getFilesFromS3(prefix string) (files []*ZipItem, err error) {
 
 	res, err := z.aws_bucket.List(prefix, "", "", 1000)
@@ -107,9 +115,13 @@ func (z *S3Zipper) getFilesFromS3(prefix string) (files []*ZipItem, err error) {
 	}
 
 	for _, s := range res.Contents {
-		filename := filepath.Base(s.Key)
-		folder := filepath.Dir(s.Key)
-
+		if s.Size == 0 {
+			// skipping empty prefixes (folders)
+			continue
+		}
+		key := strings.TrimPrefix(s.Key, prefix)
+		filename := filepath.Base(key)
+		folder := filepath.Dir(key)
 		files = append(files, &ZipItem{FileName: filename,
 			Folder: folder,
 			S3Path: s.Key,

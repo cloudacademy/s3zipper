@@ -23,10 +23,10 @@ func main() {
 		panic("Error reading conf")
 	}
 
-	f, err := os.Create("/tmp/dat2")
-	if err != nil {
-		panic(err)
-	}
+	// f, err := os.Create("/tmp/dat2")
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	s3zipper.Process(f, "CloudAcademy-AWS-Certified-Developer-Associate-Level")
+	// s3zipper.Process(f, "")
 }

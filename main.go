@@ -45,19 +45,42 @@ func main() {
 func handler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
-	// Get "ref" URL params
-	refs, ok := r.URL.Query()["ref"]
-	if !ok || len(refs) < 1 {
-		http.Error(w, "S3 File Zipper. Pass ?ref= to use.", 500)
+	// Get "id" URL params
+	ids, ok := r.URL.Query()["id"]
+	if !ok || len(ids) < 1 {
+		http.Error(w, "S3 File Zipper. Pass ?id= to use.", 500)
 		return
 	}
-	ref := refs[0]
+	id := ids[0]
+
+	// Get "version" URL params
+	vers, ok := r.URL.Query()["v"]
+	v := "1"
+	if ok && len(vers) > 0 {
+		v = vers[0]
+	}
+
+	prefix := fmt.Sprintf("%s/%s", id, v)
+	cache_file := fmt.Sprintf("%s.zip", prefix)
+
+	exists, err := s3zipper.CacheExists(cache_file)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("%s", "File doesn't exist"), 404)
+		return
+	}
+
+	if exists {
+		cache_url := s3zipper.CacheSignedUrl(cache_file)
+		//TODO must be converted to Permanent redirection code
+		http.Redirect(w, r, cache_url, 302)
+		return
+	}
 
 	// Start processing the response
-	w.Header().Add("Content-Disposition", "attachment; filename=\""+ref+".zip\"")
+	w.Header().Add("Content-Disposition", "attachment; filename=\""+prefix+"\".zip")
 	w.Header().Add("Content-Type", "application/zip")
 
-	s3zipper.Process(w, ref)
+	s3zipper.Process(w, prefix)
 
 	log.Printf("%s\t%s\t%s", r.Method, r.RequestURI, time.Since(start))
 }
