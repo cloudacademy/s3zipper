@@ -2,31 +2,61 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
+	"log"
 	"os"
 
-	"github.com/cloudacademy/s3zipper/core"
+	zipper "github.com/cloudacademy/s3zipper/core"
+	"github.com/cloudacademy/s3zipper/fs"
 )
 
-var s3zipper *core.S3Zipper
+var filesystem *fs.Filesystem
+var configFile string
+
+type Configuration struct {
+	AccessKey string
+	SecretKey string
+	Bucket    string
+	Region    string
+	Port      int
+}
+
+func init() {
+	flag.StringVar(&configFile, "c", "./conf.json", "config file path")
+}
 
 func main() {
-	var config = core.Configuration{}
-	configFile, _ := os.Open("conf.json")
-	decoder := json.NewDecoder(configFile)
-	err := decoder.Decode(&config)
-	if err != nil {
-		panic("Error reading conf")
+	flag.Parse()
+
+	if len(flag.Args()) < 2 {
+		log.Fatal("Missing params: <prefix> and <output>")
 	}
 
-	s3zipper, err = core.New(config)
+	prefix := flag.Arg(0)
+	output := flag.Arg(1)
+
+	configJSON, err := os.Open(configFile)
+	checkError(err)
+
+	decoder := json.NewDecoder(configJSON)
+
+	c := Configuration{}
+	err = decoder.Decode(&c)
+	checkError(err)
+
+	filesystem = fs.New()
+
+	f, err := os.Create(output)
 	if err != nil {
-		panic("Error reading conf")
+		panic(err)
 	}
+	zipper.Process(filesystem, f, prefix)
+	//zipper.Process(s3bucket, f, prefix)
 
-	// f, err := os.Create("/tmp/dat2")
-	// if err != nil {
-	// 	panic(err)
-	// }
+}
 
-	// s3zipper.Process(f, "")
+func checkError(err error) {
+	if err != nil {
+		log.Fatal("Error: ", err)
+	}
 }
