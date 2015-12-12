@@ -20,11 +20,9 @@ var s3bucket *s3.S3Bucket
 var configFile string
 
 type Configuration struct {
-	AccessKey string
-	SecretKey string
-	Bucket    string
-	Region    string
-	Port      int
+	Bucket string
+	Region string
+	Port   int
 }
 
 func init() {
@@ -43,7 +41,7 @@ func main() {
 	err = decoder.Decode(&c)
 	checkError(err)
 
-	s3bucket, err = s3.New(c.AccessKey, c.SecretKey, c.Region, c.Bucket)
+	s3bucket, err = s3.New(c.Region, c.Bucket)
 	checkError(err)
 
 	fmt.Println("Running on port", c.Port)
@@ -62,16 +60,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 	prefix := ids[0]
 
-	cache_file := fmt.Sprintf("%s.zip", prefix)
-
-	exists, err := s3bucket.CacheExists(cache_file)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("%s", "File doesn't exist"), 404)
-		return
-	}
+	exists := s3bucket.CacheExists(prefix)
 
 	if exists {
-		cache_url := s3bucket.CacheSignedUrl(cache_file)
+		cache_url, err := s3bucket.CacheSignedUrl(prefix)
+		if err != nil {
+			http.Error(w, err.Error(), 404)
+			return
+		}
 		//TODO must be converted to Permanent redirection code
 		http.Redirect(w, r, cache_url, 302)
 		return

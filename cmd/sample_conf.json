@@ -1,7 +1,0 @@
-{
-	"AccessKey": "key",
-	"SecretKey": "key",
-	"Bucket": "bucket",
-	"Region": "us-east-1",
-	"Port": 8000
-}

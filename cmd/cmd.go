@@ -3,22 +3,22 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
 	zipper "github.com/cloudacademy/s3zipper/core"
 	"github.com/cloudacademy/s3zipper/fs"
+	"github.com/cloudacademy/s3zipper/s3"
 )
 
 var filesystem *fs.Filesystem
 var configFile string
 
 type Configuration struct {
-	AccessKey string
-	SecretKey string
-	Bucket    string
-	Region    string
-	Port      int
+	Bucket string
+	Region string
+	Port   int
 }
 
 func init() {
@@ -44,14 +44,16 @@ func main() {
 	err = decoder.Decode(&c)
 	checkError(err)
 
-	filesystem = fs.New()
-
+	s3bucket, err := s3.New(c.Region, c.Bucket)
+	checkError(err)
+	fmt.Println(s3bucket)
 	f, err := os.Create(output)
 	if err != nil {
 		panic(err)
 	}
-	zipper.Process(filesystem, f, prefix)
-	//zipper.Process(s3bucket, f, prefix)
+
+	err = zipper.Process(s3bucket, f, prefix)
+	checkError(err)
 
 }
 

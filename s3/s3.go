@@ -7,75 +7,101 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AdRoll/goamz/aws"
-	"github.com/AdRoll/goamz/s3"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 
 	"github.com/cloudacademy/s3zipper/core"
 )
 
 type S3Bucket struct {
-	aws_bucket *s3.Bucket
+	bucket string
+	svc    *s3.S3
 }
 
-func New(accessKey, secretKey, region, bucket string) (*S3Bucket, error) {
-	expiration := time.Now().Add(time.Hour * 1)
-	auth, err := aws.GetAuth(accessKey, secretKey, "", expiration)
+func checkCreds() (err error) {
+	creds := credentials.NewEnvCredentials()
+	_, err = creds.Get()
+	if err == nil {
+		// If ENV credentials are present, I don't need to check shared credentials on fs
+		return
+	}
+	creds = credentials.NewSharedCredentials("", "")
+	_, err = creds.Get()
+	return
+}
+
+func New(region, bucket string) (*S3Bucket, error) {
+	err := checkCreds()
 	if err != nil {
 		return nil, err
 	}
 	return &S3Bucket{
-		aws_bucket: s3.New(auth, aws.GetRegion(region)).Bucket(bucket),
+		bucket: bucket,
+		svc:    s3.New(session.New(&aws.Config{Region: aws.String("us-west-2")})),
 	}, nil
 }
 
-func (z *S3Bucket) GetReader(path string) (rdr io.ReadCloser, err error) {
-	rdr, err = z.aws_bucket.GetReader(path)
-	if err != nil {
-		switch t := err.(type) {
-		case *s3.Error:
-			if t.StatusCode == 404 {
-				err = fmt.Errorf("File not found: %s", path)
-			}
-		default:
-			err = fmt.Errorf("Error downloading \"%s\" - %s", path, err.Error())
-		}
-	}
-	return
+func (z *S3Bucket) GetReader(path string) (io.ReadCloser, error) {
+	out, err := z.svc.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(z.bucket),
+		Key:    aws.String(path),
+	})
+	return out.Body, err
 }
 
 func (z *S3Bucket) List(prefix string) (files []core.ZipItem, err error) {
 
-	res, err := z.aws_bucket.List(prefix, "", "", 1000)
+	params := &s3.ListObjectsInput{
+		Bucket:    aws.String(z.bucket), // Required
+		Delimiter: aws.String(""),
+		Marker:    aws.String(""),
+		MaxKeys:   aws.Int64(1000),
+		Prefix:    aws.String(prefix),
+	}
+	res, err := z.svc.ListObjects(params)
 	if err != nil {
 		return
 	}
-
-	for _, s := range res.Contents {
-		if s.Size == 0 {
+	for _, o := range res.Contents {
+		if o.Size == aws.Int64(0) {
 			// skipping empty prefixes (folders)
 			continue
 		}
-		key := strings.TrimPrefix(s.Key, prefix)
+		key := strings.TrimPrefix(*o.Key, prefix)
 		filename := filepath.Base(key)
 		folder := filepath.Dir(key)
 		fmt.Println("folder:", folder)
 		fmt.Println("filename:", filename)
 		fmt.Println("key:", key)
-
 		files = append(files, S3ZipItem{FileName: filename,
 			Folder: folder,
-			S3Path: s.Key,
+			S3Path: *o.Key,
 		})
 	}
 	return
+
 }
 
-func (z *S3Bucket) CacheExists(prefix string) (bool, error) {
-	return z.aws_bucket.Exists(prefix)
+func (z *S3Bucket) CacheExists(prefix string) bool {
+	_, err := z.svc.HeadObject(&s3.HeadObjectInput{
+		Bucket: aws.String(z.bucket),
+		Key:    aws.String(z.cacheNameFromPrefix(prefix)),
+	})
+	return err == nil
 }
 
-func (z *S3Bucket) CacheSignedUrl(prefix string) string {
-	return z.aws_bucket.SignedURL(prefix, time.Now().Add(time.Minute))
+func (z *S3Bucket) CacheSignedUrl(prefix string) (string, error) {
+	req, _ := z.svc.GetObjectRequest(&s3.GetObjectInput{
+		Bucket: aws.String(z.bucket),
+		Key:    aws.String(prefix),
+	})
+	return req.Presign(15 * time.Minute)
+}
+
+func (z *S3Bucket) cacheNameFromPrefix(prefix string) string {
+	return fmt.Sprintf("%s.zip", prefix)
 }
 
 type S3ZipItem struct {
