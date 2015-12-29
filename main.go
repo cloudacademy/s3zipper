@@ -55,10 +55,15 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	// Get "id" URL params
 	ids, ok := r.URL.Query()["id"]
 	if !ok || len(ids) < 1 {
-		http.Error(w, "S3 File Zipper. Pass ?id= to use.", 500)
+		http.Error(w, "S3 File Zipper. Pass ?id= to use.", 400)
 		return
 	}
 	prefix := ids[0]
+
+	zipname := prefix
+	if name, ok := r.URL.Query()["name"]; ok && len(name) >= 1 {
+		zipname = name[0]
+	}
 
 	exists := s3bucket.CacheExists(prefix)
 
@@ -74,7 +79,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Start processing the response
-	w.Header().Add("Content-Disposition", "attachment; filename=\""+prefix+"\".zip")
+	w.Header().Add("Content-Disposition", "attachment; filename=\""+zipname+".zip\"")
 	w.Header().Add("Content-Type", "application/zip")
 
 	zipper.Process(s3bucket, w, prefix)
