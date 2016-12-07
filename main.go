@@ -123,7 +123,12 @@ func parseJWT(tokenString string) (string, error) {
 		return "", fmt.Errorf("invalid token: %v", token.Raw)
 	}
 
-	id, ok := token.Claims["id"]
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", fmt.Errorf("claims not a valid map")
+	}
+
+	id, ok := claims["id"]
 	if !ok {
 		return "", fmt.Errorf("missing `id` property in jwt token")
 	}
