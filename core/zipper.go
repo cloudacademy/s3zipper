@@ -56,6 +56,9 @@ func Process(fb FileBrowser, w io.Writer, prefix string) (err error) {
 			if !strings.HasSuffix(zipPath, "/") {
 				zipPath += "/"
 			}
+			if strings.HasPrefix(zipPath, "/") {
+				zipPath = zipPath[1:len(zipPath)]
+			}
 		}
 		zipPath += safeFileName
 
